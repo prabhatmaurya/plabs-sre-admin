@@ -1,0 +1,12 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/apache_access/apache_access.log
+  tags: ["apache_access"]
+
+output.logstash:
+  hosts: ["logstash:5000"]
+# output.file:
+#   path: "/tmp/filebeat"
+#   filename: filebeat

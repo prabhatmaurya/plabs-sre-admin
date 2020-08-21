@@ -1,0 +1,43 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+    #config.ssh.private_key_path = "ssh_key/vagrant_id_rsa"
+    #config.ssh.insert_key = false
+    config.vm.define "flask" do |flask|
+        flask.vm.box = "bento/centos-7.2"
+        flask.vm.hostname = "flask"
+        flask.vm.network "private_network", ip: "192.168.10.100"
+        flask.vm.provision "shell", inline: "sudo service firewalld start"
+        #flask.vm.provision "file", source: "ssh_key/vagrant_id_rsa.pub", destination: "~/.ssh/authorized_keys"
+        #flask.vm.provision "ansible" do |ansible|
+        #    ansible.playbook = "playbook.yaml"
+        #end
+        flask.vm.provider "virtualbox" do |vb|
+            vb.gui = false
+            vb.cpus = 1
+            vb.name = 'flask'
+            vb.customize ["modifyvm", :id, "--memory", "256"]
+            vb.customize ["modifyvm", :id, "--cableconnected1", "on"]
+       end
+    end
+
+    (1..2).each do |i|
+        config.vm.define "server#{i}" do |node|
+            node.vm.box = "bento/centos-7.2"
+            node.vm.hostname = "server#{i}"
+            node.vm.network "private_network", ip: "192.168.10.10#{i}"
+            #node.vm.provision "file", source: "ssh_key/vagrant_id_rsa.pub", destination: "~/.ssh/authorized_keys"
+            node.vm.provision "shell", inline: "sudo service firewalld start"
+            #node.vm.provision "ansible" do |ansible|
+            #    ansible.playbook = "nagios.yaml"
+            #end
+            node.vm.provider "virtualbox" do |vb|
+                vb.gui = false
+                vb.name = "server#{i}"
+                vb.cpus = 1
+                vb.customize ["modifyvm", :id, "--memory", "256"]
+                vb.customize ["modifyvm", :id, "--cableconnected1", "on"]
+           end
+        end
+    end
+end

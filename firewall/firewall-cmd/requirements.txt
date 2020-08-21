@@ -1,0 +1,5 @@
+flask
+tinydb
+hashlib
+fabric
+python-vagrant
