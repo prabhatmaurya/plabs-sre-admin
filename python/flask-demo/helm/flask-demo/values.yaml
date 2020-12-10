@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: 172.17.0.2:32769/flask-demo
+  repository: 172.17.0.2:5000/flask-demo
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: b3dd9fd
