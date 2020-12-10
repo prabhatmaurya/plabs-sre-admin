@@ -1,0 +1,110 @@
+import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException
+pipeline {
+    agent any
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '10'))
+        disableConcurrentBuilds()
+        timestamps()
+    }
+    environment {
+        APP_NAME="flask-demo"
+        ARGOCD_APP_LIST = "flask-demo"
+        VALUES_FILE   = 'values.yaml'
+        GIT_URL="git@github.com:prabhatmaurya/plabs-sre-admin.git"
+        GIT_BRANCH="master"
+        ARGOCD_SERVER="127.0.0.1:8080"
+        ARGOCD_AUTH_TOKEN = credentials('argocd')
+        DOCKER_REGISTRY="127.0.0.1:32769"
+
+    }
+    parameters {
+        booleanParam(defaultValue: false, description: 'Update pipeline parameters without building/deploying', name: 'UPDATE_PIPELINE_ONLY')
+    }
+
+    stages{
+        stage('Update the pipeline and abort') {
+            when {
+                expression { env.UPDATE_PIPELINE_ONLY != 'false' }
+            }
+            steps {
+                script {
+                    currentBuild.result = 'ABORTED'
+                    error('Pipeline successfully updated! Please rerun the pipeline!')
+                }
+            }
+        }
+
+        stage('Initialization') {
+            steps {
+                script {
+                        dir('app'){
+                            deleteDir()
+                            checkout([$class: 'GitSCM',
+                                branches: [[name: "${GIT_BRANCH}"]],
+                                doGenerateSubmoduleConfigurations: false,
+                                extensions: [],
+                                submoduleCfg: [],
+                                userRemoteConfigs: [[credentialsId: 'github',
+                                                    name: "",
+                                                    url: "${GIT_URL}"
+                                                    ]]
+                                    ])
+                        }
+                }
+            }
+        }
+        stage('Build') {
+            options { retry(3) }
+            steps {
+                script{
+                    try{
+                        timeout(time: 15, unit: 'MINUTES') {
+                           dir('app/python/flask-demo'){
+                                    commitid = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                                    sh "docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:${commitid} --rm ."
+                                    sh "docker push ${DOCKER_REGISTRY}/${APP_NAME}:${commitid}"
+                                }
+                            }
+                    } catch (FlowInterruptedException e) {
+                       // Work around https://issues.jenkins-ci.org/browse/JENKINS-51454
+                        error 'Timeout has been exceeded'
+                    }
+                }
+            }
+        }
+        stage ('Update helm repo') {
+            steps {
+                script {
+
+                    lock('lock_helm_repo') {
+                        dir('app/python/flask-demo'){
+                            sh("git config user.email 'prabhatmaurya@email.com'")
+                            sh("git config user.name 'prabhatmaurya'")
+                            def str = VALUES_FILE.split(',')
+                            for( String values : str )
+                                sh("sed -i 's/^[[:blank:]]*tag:.*/  tag: ${commitid}/' helm/flask-demo/${values}")
+                            sh("git diff")
+                            sh("git add .")
+                            sh("git commit -m 'Jenkin job ${currentBuild.number}'")
+                            sshagent(['github']) {
+                                sh("git show-ref")
+                                sh("git push origin HEAD:master")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage ('Trigger ArgoCD') {
+            steps {
+                script {
+                    def app = ARGOCD_APP_LIST.split(',')
+                    for( String ARGOCD_APP_NAME : app ){
+                        sh(returnStdout: true, script: "/mnt/c/Users/prabh/bin/argocd.exe app sync ${ARGOCD_APP_NAME} --server ${ARGOCD_SERVER}  --insecure --auth-token ${ARGOCD_AUTH_TOKEN}")
+                        sh(returnStdout: true, script: "/mnt/c/Users/prabh/bin/argocd.exe app wait ${ARGOCD_APP_NAME} --server ${ARGOCD_SERVER}  --insecure --auth-token ${ARGOCD_AUTH_TOKEN}")
+                    }
+                }
+            }
+        }
+    }
+}

@@ -4,7 +4,7 @@ from flask import jsonify, render_template, request
 
 @app.route('/',strict_slashes=False)
 def home():
-    response = dict(version='v2')
+    response = dict(version='v3')
     return json.dumps(response)
 
 if __name__ == '__main__':
