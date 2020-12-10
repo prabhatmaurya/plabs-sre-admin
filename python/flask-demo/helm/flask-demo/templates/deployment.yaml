@@ -5,9 +5,7 @@ metadata:
   labels:
     {{- include "flask-demo.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
       {{- include "flask-demo.selectorLabels" . | nindent 6 }}
@@ -24,7 +22,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "flask-demo.serviceAccountName" . }}
+      
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
